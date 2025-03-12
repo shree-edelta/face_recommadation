@@ -8,9 +8,9 @@ from database import SessionLocal, engine
 import models
 from PIL import Image as PILImage
 import face_recognition 
+import image_recognition as img_rec
 
 models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
 
 def is_face_duplicate(face_encodings, db):
@@ -54,41 +54,41 @@ def get_db():
 @app.post("/upload_group_photo")
 async def upload_group_photo(file: UploadFile = File(...), db: Session = Depends(get_db)):
     
-    contents = await file.read()
+    recognized_people = img_rec.recognize_faces_in_group_photo(file)
+    print(recognized_people)
+    # contents = await file.read()
 
     file_path = f"uploads/{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(contents)
-        # shutil.copyfileobj(contents, f)
+    # with open(file_path, "wb") as f:
+    #     f.write(contents)
+    #     # shutil.copyfileobj(contents, f)
     
     
-    image = PILImage.open(file_path)
-    image_np = np.array(image)
-    print(image_np)
+    # image = PILImage.open(file_path)
+    # image_np = np.array(image)
+    # print(image_np)
     
-    # Detect face locations and extract their encodings using face_recognition
-    face_locations = face_recognition.face_locations(image_np)
-    face_encodings = face_recognition.face_encodings(image_np, face_locations)
+    # # Detect face locations and extract their encodings using face_recognition
+    # face_locations = face_recognition.face_locations(image_np)
+    # face_encodings = face_recognition.face_encodings(image_np, face_locations)
 
     
-    if face_encodings is None:
-        raise HTTPException(status_code=400, detail="No face detected in the image")
+    # if face_encodings is None:
+    #     raise HTTPException(status_code=400, detail="No face detected in the image")
 
-    if is_face_duplicate(face_encodings, db):
-        return {"message": "This face is already in the database. Duplicate not inserted."}
+    # if is_face_duplicate(face_encodings, db):
+    #     return {"message": "This face is already in the database. Duplicate not inserted."}
     
-    db_image = models.Image(filename=file.filename, file_path=file_path)
+    db_image = models.Image(filename=recognized_people[1], file_path=file_path)
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
 
-   
+    face_encodings  = img_rec.get_face_encodings(file_path)
     for encoding in face_encodings:
-        encoding_bytes = encoding.tobytes()  
-       
+        
         db_face = models.UniqueFace(
-            encoding=encoding_bytes,
-            image_id=db_image.id,  
+            name = f"unmatched_face_{encoding}.jpg"
         )
         db.add(db_face)
 
@@ -99,5 +99,5 @@ async def upload_group_photo(file: UploadFile = File(...), db: Session = Depends
 def get_faces_in_group(image_id: int, db: Session = Depends(get_db)):
    
     faces = db.query(models.UniqueFace).filter(models.UniqueFace.image_id == image_id).all()
-    return {"faces": [{"id": face.id, "name": face.name,"encodig": face.encoding} for face in faces]}
+    return {"faces": [{"id": face.id, "name": face.name} for face in faces]}
 

@@ -6,56 +6,82 @@ import cv2
 import uuid
 import hashlib
 
-def generate_random_id():
-    return str(uuid.uuid4())
+def generate_random_id(image: np.ndarray):
+    _, buffer = cv2.imencode('.jpeg', image)  # Convert the image to a byte format 
+    image_bytes = buffer.tobytes()  
+    image_hash = hashlib.sha256(image_bytes).hexdigest()
+    image_id = uuid.uuid5(uuid.NAMESPACE_DNS, image_hash)
+    return str(image_id)
 
-# Step 1: Load known faces (encode the known people).
 def load_known_faces():
     known_faces = []
     known_names = []
-
-    person_image = face_recognition.load_image_file("/Users/bhavik/Desktop/face_recognition_fastapi/uploads/srk.jpeg")  
-    person_encoding = face_recognition.face_encodings(person_image)[0]
-    known_faces.append(person_encoding)
-    def generate_image_id(image):
-    # Read image content as bytes
-        image_bytes = image.file.read()
-        
-        # Create a hash of the image content (SHA-256 is a good choice)
-        image_hash = hashlib.sha256(image_bytes).hexdigest()
-        
-        # Generate a UUID based on the image hash to ensure uniqueness
-        image_id = uuid.uuid5(uuid.NAMESPACE_DNS, image_hash)
-        
-        return str(image_id)
-    known_names.append(generate_image_id(person_image()) ) 
-    print(known_faces, known_names)
-    return known_faces, known_names
-
-
+    images_path=[]
+    path="/Users/bhavik/Desktop/face_recognition_fastapi/faces"
+    for filename in os.listdir(path):
+        imagepath = os.path.join(path, filename)
+        if group_photo_path == imagepath:
+            continue
+    #    if filename.endswith(".jpg") or filename.endswith(".png"):
+    #        images_path.append(os.path.join(path, filename))
+    #        img = face_recognition.load_image_file(os.path.join(path, filename))
+    #        face_encoding = face_recognition.face_encodings(img)[0]
+        person_image = face_recognition.load_image_file(imagepath)
+        face_encodings = face_recognition.face_encodings(person_image)
+        if  face_encodings:
+            person_encoding = face_encodings[0]
+            known_faces.append(person_encoding)
+            known_names.append(generate_random_id(person_image) ) 
+            images_path.append(filename)
+      
+    return known_faces, known_names, images_path
 
 def get_face_encodings(image_path):
     image = face_recognition.load_image_file(image_path)
     face_encodings = face_recognition.face_encodings(image)
-
+    print("face_encodings/////////////////////////",face_encodings)
     return face_encodings
 
-def recognize_faces_in_group(image_encodings, known_faces, known_names):
+seen_hashes = set() 
+def recognize_faces_in_group(image_encodings, known_faces, known_names,images_path):
     recognized_people = []
-
+    # seen_hashes = set() 
+    face_path = "/Users/bhavik/Desktop/face_recognition_fastapi/faces"
+    face_locations = face_recognition.face_locations(image)
+    print(image)
     for face_encoding in image_encodings:
+        print(len(image_encodings))
         matches = face_recognition.compare_faces(known_faces, face_encoding, tolerance=0.6)
-
-        if True in matches:
+        print('matches........',matches)
+        
+        if True in matches:  
             first_match_index = matches.index(True)
-            recognized_people.append(known_names[first_match_index])  
-
+            print(first_match_index)
+            recognized_people.append((known_names[first_match_index], images_path[first_match_index])) 
+        else:
+            for (top, right, bottom, left) in face_locations:
+                print(face_locations)
+                # unmatched_face = image[top+40:bottom-20, left-6:right+6]
+                unmatched_face = image[top:bottom,left:right]
+                image_hash = generate_random_id(unmatched_face)
+                cv2.imshow(f"{image_hash}", unmatched_face)
+                print("detect")
+                if image_hash not in seen_hashes:
+                    print('sen...............',seen_hashes)
+                    seen_hashes.add(image_hash)
+                    unmatched_face_filename = os.path.join(face_path, f"unmatched_face_{image_hash}.jpg")
+                    cv2.imwrite(unmatched_face_filename, unmatched_face)
+                    cv2.waitKey(0)
+                    print(f"Saved unmatched face to {unmatched_face_filename}")
+                else:
+                    print(f"Face already processed, skipping duplicate: {image_hash}")
+                    
     return recognized_people
+    # print("recognize_faces_in_group",recognized_people)
+    # return recognized_people
 
 def recognize_faces_in_group_photo(group_photo_path):
-    
-    known_faces, known_names = load_known_faces()
-
+    known_faces, known_names,images_path = load_known_faces()
     image_encodings = get_face_encodings(group_photo_path)
 
     if len(image_encodings) == 0:
@@ -63,87 +89,63 @@ def recognize_faces_in_group_photo(group_photo_path):
         return []
 
     
-    recognized_people = recognize_faces_in_group(image_encodings, known_faces, known_names)
+    recognized_people = recognize_faces_in_group(image_encodings, known_faces, known_names,images_path)
 
     if not recognized_people:
         print("No recognized faces found in the image.")
         return []
-
+    print('recognize_faces_in_group_photo',recognized_people)
     return recognized_people
 
 
 # Main execution
 if __name__ == "__main__":
-    group_photo_path = "/Users/bhavik/Desktop/face_recognition_fastapi/uploads/psd.jpeg"
-
- 
+    group_photo_path = "/Users/bhavik/Desktop/face_recognition_fastapi/uploads/rashmika2.jpeg"
+    face_path = "/Users/bhavik/Desktop/face_recognition_fastapi/faces"
     
     image = cv2.imread(group_photo_path)
-
+    
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
     face_locations = face_recognition.face_locations(rgb_image)
-
-
+    
     for top, right, bottom, left in face_locations:
-        cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
-
-
+        #  cv2.rectangle(image, (left-6, top-40), (right+6, bottom+20), (255, 0, 0), 2)
+        cv2.rectangle(image, (left, top), (right, bottom), (255, 0, 0), 2)
+        
     cv2.imshow("Group Image with Faces", image)
-
-    # Wait for any key press to close the image window
     cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    
+
     recognized_people = recognize_faces_in_group_photo(group_photo_path)
-    if recognized_people:
-        print(f"Recognized people: {', '.join(recognized_people)}")
-    else:
-        print("No recognized faces.")
-
-
-# import hashlib
-# import uuid
-# import numpy as np
-# import cv2  # Using OpenCV for image processing
-
-# # Function to generate a unique ID based on image content (using SHA-256 hash)
-# def generate_image_id(image: np.ndarray):
-#     # Convert image to bytes
-#     _, buffer = cv2.imencode('.jpg', image)  # Convert the image to a byte format (JPEG in this case)
-#     image_bytes = buffer.tobytes()  # Convert the buffer into bytes
     
-#     # Create a hash of the image content (SHA-256)
-#     image_hash = hashlib.sha256(image_bytes).hexdigest()
+    for index, (top, right, bottom, left) in enumerate(face_locations):
+        if index < len(recognized_people):
+            # cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
+            name, image_path = recognized_people[index]
+            face_image = image[top:bottom, left:right]
+            # face_filename = os.path.join(face_path, f"{name}.jpg")
+            if recognized_people:
+                # print(f"Recognized people: {', '.join([f'{name} from {image_path}' for name, image_path in recognized_people])}")
+                print("alredy exist in faces.")
+            # cv2.imwrite(face_filename, face_image)
+            cv2.imshow(f"{name}", face_image)
+    cv2.waitKey(0)
+    # cv2.imshow("Group Image with Faces", image) 
     
-#     # Generate a UUID based on the image hash to ensure uniqueness
-#     image_id = uuid.uuid5(uuid.NAMESPACE_DNS, image_hash)
     
-#     return str(image_id)
+    # recognized_people = recognize_faces_in_group_photo(group_photo_path)
+    
+    
 
-# # Simulate reading the image for recognition (use OpenCV to load the image)
-# def person_image(image_path: str) -> np.ndarray:
-#     # Load the image using OpenCV (this will return a numpy array)
-#     image = cv2.imread(image_path)
-#     return image
+   
 
-# # Loading known faces (example)
-# def load_known_faces():
-#     known_faces = []
-#     known_names = []
 
-#     # Example: Load an image and generate its ID
-#     image_path = "path_to_some_image.jpg"
-#     image = person_image(image_path)  # Read image as numpy array
-    
-#     # Generate a unique ID for the image
-#     image_id = generate_image_id(image)
-    
-#     # Append to known names
-#     known_names.append(image_id)
-    
-#     return known_faces, known_names
 
-# # Example of using the above function to generate image IDs
-# known_faces, known_names = load_known_faces()
-# print("Known Names (Unique IDs for Images):", known_names)
+
+
+
+
+
+
+
+
+

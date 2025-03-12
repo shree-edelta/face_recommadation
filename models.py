@@ -45,15 +45,17 @@ class Image(Base):
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
-    faces = relationship("UniqueFace", back_populates="image")  # Relationship with faces
 
 class UniqueFace(Base):
     __tablename__ = "unique_faces"
 
-    id = Column(Integer, primary_key=True, index=True)
-    encoding = Column(LargeBinary, nullable=False)  # Store face encoding as binary
-    name = Column(String, nullable=True)  # Optionally store name/label for face
-    image_id = Column(Integer, ForeignKey("images.id"), nullable=False)  # Reference to the original image
+    unique_face_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=True) 
+    image_id = Column(Integer, ForeignKey("images.id"), nullable=False)  
 
-    # Relationship with Image model (one image can have many faces)
-    image = relationship("Image", back_populates="faces")
+class Face(Base):
+    __tablename__ = "faces"
+    id = Column(Integer, primary_key=True, index=True)
+    grp_id = Column(Integer, ForeignKey("images.id"), nullable=False)  
+    unique_face_id = Column(Integer, ForeignKey("unique_faces.unique_face_id"), nullable=False) 
+    
