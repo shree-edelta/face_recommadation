@@ -57,5 +57,5 @@ class Face(Base):
     __tablename__ = "faces"
     id = Column(Integer, primary_key=True, index=True)
     grp_id = Column(Integer, ForeignKey("images.id"), nullable=False)  
-    unique_face_id = Column(Integer, ForeignKey("unique_faces.unique_face_id"), nullable=False) 
+    unique_face_id = Column(Integer, ForeignKey("unique_faces.unique_face_id"), nullable=True) 
     
